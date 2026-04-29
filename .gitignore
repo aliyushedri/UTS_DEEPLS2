@@ -1,0 +1,36 @@
+# Local editor settings
+.vscode/
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Credentials and local downloads
+credentials.json
+token.json
+results_from_drive/
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.xdv
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+Laporan pdf Latex/svg-inkscape/

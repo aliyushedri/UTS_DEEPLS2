@@ -1,0 +1,6 @@
+model,cv_r2
+Linear Regression (poly2),0.29504027219499207
+Linear Regression (poly2 log1p),0.2593090706123169
+Linear Regression,0.1626345026608457
+Linear Regression (log1p),0.10972468887494817
+SVR,-0.015259756739076136

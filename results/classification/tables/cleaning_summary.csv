@@ -1,0 +1,5 @@
+metric,value
+raw_rows,70000.0
+clean_rows,68608.0
+removed_rows,1392.0
+removed_percent,1.9885714285714284

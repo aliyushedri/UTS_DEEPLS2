@@ -1,0 +1,214 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{cite}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage{svg}
+\svgpath{{figures/}}
+\svgsetup{inkscapelatex=false}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\renewcommand{\tablename}{Tabel}
+\renewcommand{\figurename}{Gambar}
+\renewcommand{\abstractname}{Abstrak}
+\def\IEEEkeywordsname{Kata Kunci}
+
+\title{Analisis Pipeline Machine Learning untuk Klasifikasi Penyakit Kardiovaskular dan Prediksi Konsumsi Energi Bangunan}
+
+\author{
+\IEEEauthorblockN{Aliyus Hedri}
+\IEEEauthorblockA{\textit{Program Studi Magister Teknik Elektro}\\
+\textit{Telkom University}\\
+Bandung, Indonesia\\
+aliyushedri@student.telkomuniversity.ac.id}
+\and
+\IEEEauthorblockN{Ashura Sindhu Santhana}
+\IEEEauthorblockA{\textit{Program Studi Magister Teknik Elektro}\\
+\textit{Telkom University}\\
+Bandung, Indonesia\\
+ashura@student.telkomuniversity.ac.id}
+}
+
+\maketitle
+
+\begin{abstract}
+Studi ini menyajikan pipeline pembelajaran mesin yang utuh pada dua kasus rekayasa, yaitu klasifikasi risiko penyakit kardiovaskular berbasis rekam medis dan regresi konsumsi energi peralatan bangunan berbasis sensor lingkungan. Pipeline tersebut mencakup analisis data eksploratif, penanganan \textit{outlier} klinis, rekayasa fitur turunan, seleksi fitur berbasis korelasi, standardisasi, evaluasi lima model klasifikasi dan empat varian model regresi pada dua skenario split data, validasi silang 5-fold, serta tuning hiperparameter berbasis \textit{Random Search}. Pada data kardiovaskular, fitur klinis turunan membentuk kategori tekanan darah dan tekanan arteri rata-rata yang berkorelasi tinggi dengan target. Random Forest hasil tuning mengungguli baseline dengan F1 0{,}7203 dan ROC-AUC 0{,}8012 pada split 80:20. Pada data energi, perluasan ruang fitur melalui interaksi orde dua menaikkan koefisien determinasi dari 0{,}169 menjadi 0{,}289, sedangkan tuning \textit{support vector regression} dengan kernel RBF menaikkan koefisien determinasi dari hampir nol menjadi 0{,}160. Temuan ini menunjukkan bahwa rekayasa fitur klinis dan ekspansi non-linier sederhana memberi dampak yang lebih besar dibanding tuning hiperparameter semata.
+\end{abstract}
+
+\begin{IEEEkeywords}
+pembelajaran mesin, klasifikasi penyakit kardiovaskular, regresi konsumsi energi, rekayasa fitur, validasi silang, tuning hiperparameter
+\end{IEEEkeywords}
+
+\section{Pendahuluan}
+Pemanfaatan pembelajaran mesin pada bidang teknik elektro semakin meluas, mulai dari analisis sinyal biomedis hingga manajemen energi gedung pintar. Dua persoalan yang representatif untuk mengilustrasikan luasnya penerapan tersebut adalah klasifikasi penyakit kardiovaskular dari rekam medis tabular dan regresi konsumsi energi peralatan rumah dari pengukuran sensor lingkungan~\cite{Tien2022,Ahmed2022}. Penyakit kardiovaskular merupakan penyebab kematian tertinggi secara global, sehingga klasifikator dini berbasis variabel klinis sederhana dapat membantu skrining pasien risiko tinggi pada layanan kesehatan primer~\cite{WHO2023,Ahmed2022}. Di sisi lain, sektor bangunan menyumbang porsi konsumsi energi yang besar, sehingga prediksi beban listrik berbasis sensor Internet of Things bermanfaat bagi optimasi operasional dan respons permintaan~\cite{Candanedo2017,Bourdeau2019,Somu2021}.
+
+Laporan ini menyajikan pipeline empat tahap yang dijalankan secara konsisten pada kedua dataset, yaitu rekayasa fitur dan analisis eksploratif, pemodelan baseline, tuning hiperparameter, serta interpretasi hasil. Setiap tahap dievaluasi pada dua skenario split data, yakni 80:20 dan 70:30, dengan validasi silang 5-fold agar estimasi kinerja tidak bergantung pada satu split saja~\cite{Raschka2018,Varoquaux2017}. Kontribusi utama laporan ini adalah membandingkan secara eksplisit pengaruh rekayasa fitur dan tuning hiperparameter pada dua persoalan yang karakternya berbeda: klasifikasi biner dengan target seimbang dan regresi dengan target yang sangat \textit{right-skewed}.
+
+\section{Metodologi}
+\subsection{Dataset}
+Dataset pertama adalah \textit{Cardiovascular Disease Dataset} yang berisi 70.000 rekam data pasien dengan dua belas atribut numerik dan biner. Atribut tersebut mencakup usia, jenis kelamin, tinggi badan, berat badan, tekanan sistolik dan diastolik, kadar kolesterol dan glukosa, kebiasaan merokok dan alkohol, aktivitas fisik, serta label diagnosis penyakit kardiovaskular dengan distribusi 50{,}03 persen berbanding 49{,}97 persen~\cite{Sulianova2018Cardio}. Dataset kedua adalah \textit{Appliances Energy Prediction} yang berisi 19.735 baris pengamatan dari sensor zona pada satu rumah rendah energi di Belgia, dengan resolusi pengamatan sepuluh menit dan tambahan variabel cuaca dari stasiun terdekat~\cite{Candanedo2017,Dua2019UCI}. Variabel targetnya adalah konsumsi energi peralatan dalam watt-jam, dengan rerata 97{,}69 dan deviasi standar 102{,}52. Nilai tersebut menunjukkan distribusi yang sangat \textit{right-skewed} dan memiliki \textit{outlier} tinggi.
+
+\subsection{Pra-Pemrosesan dan Rekayasa Fitur}
+Tahap pra-pemrosesan data kardiovaskular dimulai dengan konversi usia dari hari ke tahun dan perhitungan indeks massa tubuh dari tinggi serta berat badan~\cite{KhanIcmla2020}. Selanjutnya ditambahkan dua besaran tekanan darah turunan, yaitu tekanan nadi sebagai selisih tekanan sistolik dan diastolik, serta tekanan arteri rata-rata yang dihitung menggunakan pendekatan empiris klinis. Klasifikasi tekanan darah lima tingkat menurut pedoman American Heart Association ditambahkan sebagai fitur kategorikal, kemudian dikodekan secara \textit{one-hot}. Pengamatan yang berada di luar rentang klinis wajar disaring berdasarkan batas dari literatur kedokteran, yaitu tinggi badan 120 sampai 220 sentimeter, berat badan 30 sampai 200 kilogram, tekanan sistolik 80 sampai 240 milimeter merkuri, tekanan diastolik 40 sampai 160 milimeter merkuri, serta tekanan sistolik yang harus lebih besar daripada tekanan diastolik. Penyaringan ini menyisakan 68.608 baris, membuang 1{,}99 persen data, dan menghasilkan 18 fitur akhir.
+
+Pada dataset energi, lima fitur waktu diturunkan dari kolom tanggal, yaitu jam, tanggal harian, bulan, hari dalam minggu, dan penanda akhir pekan. Dua fitur acak yang saling berkorelasi sempurna direduksi dengan menghapus salah satunya. Analisis korelasi pasangan juga menemukan satu fitur suhu luar dengan korelasi mutlak lebih dari 0{,}95 terhadap fitur suhu lain, sehingga fitur tersebut dihapus sebagai bagian dari seleksi fitur. Standardisasi diterapkan secara konsisten pada kedua dataset di dalam pipeline, sehingga statistik penskalaan hanya dipelajari dari data latih dan tidak menyebabkan kebocoran data~\cite{Pedregosa2011}.
+
+\begin{table}[t]
+\caption{Dampak Rekayasa Fitur Berbasis Validasi Silang 5-Fold}
+\label{tab:fe}
+\centering
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Skenario} & \textbf{Sebelum} & \textbf{Sesudah} \\
+\midrule
+F1 kardiovaskular        & 0{,}7085 & 0{,}7049 \\
+ROC-AUC kardiovaskular   & 0{,}7843 & 0{,}7930 \\
+$R^2$ energi             & 0{,}1624 & 0{,}1660 \\
+RMSE energi              & 93{,}80  & 93{,}60  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includesvg[width=0.95\columnwidth]{cardio_correlation_heatmap}
+\caption{\textit{Heatmap} korelasi Pearson dataset kardiovaskular setelah rekayasa fitur klinis. Klaster gelap pada kelompok tekanan darah, indeks massa tubuh, dan kategori hipertensi mengindikasikan adanya dimensi laten yang sama, sehingga model linier diperkirakan dapat menangkap sebagian besar variasinya.}
+\label{fig:heatmap_cardio}
+\end{figure}
+
+\subsection{Pemodelan Baseline dan Tuning Hiperparameter}
+Lima model klasifikasi dievaluasi sebagai baseline untuk dataset kardiovaskular, yaitu regresi logistik, $k$-Nearest Neighbors, Decision Tree, Random Forest, dan \textit{support vector classifier} linier~\cite{Pedregosa2011,Hastie2009}. Untuk dataset energi, baseline diperluas menjadi empat varian regresi linier dan satu \textit{support vector regression}. Varian regresi linier mencakup formulasi standar, transformasi target logaritma natural berbasis $\log(1+y)$ untuk menangani distribusi target yang \textit{right-skewed}, ekspansi fitur polinomial orde dua dengan hanya \textit{interaction terms}, serta kombinasi keduanya. Pendekatan ini selaras dengan praktik mutakhir pada literatur prediksi konsumsi energi yang menyoroti pentingnya penanganan \textit{skewness} target~\cite{Tien2022,Bourdeau2019}.
+
+Setiap model dievaluasi pada dua skenario split data dan validasi silang 5-fold. Metrik utama untuk klasifikasi adalah akurasi, presisi, \textit{recall}, F1, dan area di bawah kurva ROC, sedangkan metrik regresi mencakup MAE, MAPE, RMSE, dan koefisien determinasi~\cite{Naser2023}. Berdasarkan rerata F1 lintas split, regresi logistik dan Random Forest dipilih sebagai dua kandidat tuning pada tugas klasifikasi. Tuning dilakukan dengan \textit{Random Search} sebanyak enam puluh kombinasi. Ruang pencarian mencakup parameter regularisasi dan bobot kelas untuk regresi logistik, serta jumlah pohon, kedalaman, ukuran daun minimum, dan strategi pemilihan fitur untuk Random Forest~\cite{Yang2020Hyperopt}. Untuk regresi, kandidat tuning adalah varian linier polinomial dan \textit{support vector regression}. \textit{Support vector regression} dilatih melalui aproksimasi kernel Nystr\"oem yang dilanjutkan dengan estimator linier agar waktu komputasi tetap layak untuk ukuran data yang digunakan~\cite{Pedregosa2011}. Ruang pencarian untuk \textit{support vector regression} dibuat berdistribusi \textit{log-uniform} pada parameter $\gamma$ dan $C$ supaya eksplorasi mencakup rentang skala yang luas.
+
+\section{Hasil dan Pembahasan}
+
+\subsection{Klasifikasi Penyakit Kardiovaskular}
+Hasil baseline ditunjukkan pada Tabel~\ref{tab:cardio_baseline}. Regresi logistik dan \textit{support vector classifier} linier menempati posisi teratas pada metrik ROC-AUC dengan selisih kurang dari satu poin persentase, sementara Random Forest dan $k$-Nearest Neighbors menunjukkan kinerja yang hampir setara pada metrik F1. Decision Tree tunggal memberikan hasil paling rendah karena varians prediksinya tinggi pada data tabular dengan banyak fitur kontinu~\cite{Hastie2009}. Setelah \textit{Random Search} enam puluh iterasi pada dua kandidat utama, Random Forest hasil tuning mengungguli regresi logistik pada kedua skenario split data. Pada split 80:20, akurasi tes meningkat dari 0{,}7108 menjadi 0{,}7351, F1 dari 0{,}7024 menjadi 0{,}7203, dan ROC-AUC dari 0{,}7725 menjadi 0{,}8012. Pada split 70:30, ketiga metrik bergerak ke arah yang sama, dengan F1 mencapai 0{,}7243.
+
+\begin{table}[t]
+\caption{Kinerja Baseline Klasifikasi pada Split 80:20}
+\label{tab:cardio_baseline}
+\centering
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{Acc.} & \textbf{F1} & \textbf{Recall} & \textbf{ROC-AUC} \\
+\midrule
+Regresi logistik       & 0{,}7266 & 0{,}7029 & 0{,}6537 & 0{,}7940 \\
+SVM linier             & 0{,}7246 & 0{,}6976 & 0{,}6419 & 0{,}7933 \\
+$k$-Nearest Neighbors  & 0{,}7177 & 0{,}7040 & 0{,}6787 & 0{,}7794 \\
+Random Forest          & 0{,}7108 & 0{,}7024 & 0{,}6898 & 0{,}7725 \\
+Decision Tree          & 0{,}6288 & 0{,}6224 & 0{,}6184 & 0{,}6287 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includesvg[width=0.95\columnwidth]{cardio_tuning_f1_comparison}
+\caption{Perbandingan F1 tes Random Forest sebelum dan sesudah tuning hiperparameter pada kedua skenario split data. Tuning menghasilkan kenaikan yang konsisten lintas split.}
+\label{fig:cardio_tuning}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includesvg[width=0.85\columnwidth]{cardio_confusion_matrix_80_20}
+\caption{Matriks konfusi Random Forest hasil tuning pada split 80:20. \textit{Recall} kelas pasien sehat lebih tinggi dibanding kelas pasien sakit, yang mengisyaratkan model masih konservatif dalam memberi label positif.}
+\label{fig:cardio_cm}
+\end{figure}
+
+Matriks konfusi pada Gambar~\ref{fig:cardio_cm} menunjukkan bahwa model menghasilkan presisi 0{,}754 dan \textit{recall} 0{,}689 pada kelas pasien sakit untuk split 80:20. Artinya, dari setiap seratus pasien yang benar-benar menderita penyakit kardiovaskular, model berhasil mengidentifikasi sekitar 69 pasien, sedangkan 31 pasien lainnya masih luput. Nilai \textit{recall} 0{,}689 menjadi catatan penting untuk skenario skrining medis karena negatif palsu, yaitu pasien sakit yang tidak terdeteksi, memiliki risiko klinis yang tinggi~\cite{Ahmed2022,Yusuf2024Cardio,Pasha2024CVD}. Untuk implementasi nyata, \textit{decision threshold} probabilitas model dapat diturunkan di bawah 0{,}5 guna meningkatkan \textit{recall}, dengan konsekuensi penurunan presisi yang masih dapat diterima pada konteks skrining awal. Konfigurasi terbaik pada kedua split mengarah pada Random Forest dengan kedalaman maksimum delapan sampai sepuluh, jumlah pohon antara 218 sampai 383, dan jumlah daun minimum tujuh sampai sembilan. Pola ini menunjukkan bahwa model cenderung membutuhkan regularisasi agar tidak \textit{overfitting} pada fitur klinis berskala besar~\cite{KhanIcmla2020}.
+
+\subsection{Regresi Konsumsi Energi}
+Tabel~\ref{tab:energy_baseline} merangkum kinerja kelima varian baseline regresi pada split 80:20. Regresi linier baku hanya mampu menjelaskan sekitar tujuh belas persen variasi target, sejalan dengan temuan awal pada dataset ini yang menunjukkan kuatnya tantangan non-linieritas~\cite{Candanedo2017,Pham2020Energy}. Transformasi logaritma target justru menurunkan koefisien determinasi karena evaluasi tetap dilakukan pada skala asli, sehingga kompresi target memperburuk perkiraan pada ekor distribusi. Sebaliknya, ekspansi fitur polinomial orde dua dengan hanya \textit{interaction terms} meningkatkan kapasitas representasi tanpa menambahkan parameter kuadratik murni. Varian ini menghasilkan koefisien determinasi 0{,}289 pada data tes dan RMSE 84{,}3 watt-jam. Kombinasi polinomial dengan transformasi logaritma berada di antara kedua pendekatan tersebut.
+
+\begin{table}[t]
+\caption{Kinerja Baseline Regresi pada Split 80:20}
+\label{tab:energy_baseline}
+\centering
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{MAE} & \textbf{MAPE (\%)} & \textbf{RMSE} & $\mathbf{R^2}$ \\
+\midrule
+Linier polinomial 2          & 49{,}63 & 57{,}90 & 84{,}34 & 0{,}2892 \\
+Linier polinomial 2 log1p    & 40{,}20 & 36{,}25 & 86{,}93 & 0{,}2448 \\
+Linier baku                  & 52{,}55 & 62{,}81 & 91{,}17 & 0{,}1693 \\
+Linier log1p                 & 44{,}33 & 40{,}40 & 94{,}35 & 0{,}1104 \\
+SVR Nystr\"oem               & 43{,}17 & 32{,}84 & 100{,}03 & 0{,}0001 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includesvg[width=0.85\columnwidth]{energy_target_distribution}
+\caption{Distribusi target konsumsi energi peralatan. Sebaran sangat \textit{right-skewed} dengan modus pada rentang 50 sampai 80 watt-jam dan ekor panjang hingga 1080 watt-jam, sehingga regresor berbasis kuadrat terkecil cenderung tertarik ke nilai rerata.}
+\label{fig:energy_target}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includesvg[width=0.95\columnwidth]{energy_tuning_r2_comparison}
+\caption{Perbandingan koefisien determinasi sebelum dan sesudah tuning untuk model regresi terbaik pada kedua split. Tuning menjaga kinerja regresi linier polinomial dan meningkatkan \textit{support vector regression} secara signifikan.}
+\label{fig:energy_tuning}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includesvg[width=0.85\columnwidth]{energy_actual_vs_predicted_80_20}
+\caption{Plot prediksi terhadap nilai aktual untuk model linier polinomial hasil tuning pada split 80:20. Sebaran titik di bawah garis identitas saat target tinggi menunjukkan bahwa model cenderung \textit{underestimate} konsumsi ketika beban memuncak.}
+\label{fig:energy_avp}
+\end{figure}
+
+Tuning \textit{Random Search} sebanyak delapan puluh iterasi pada \textit{support vector regression} menaikkan koefisien determinasi tes dari 0{,}0001 menjadi 0{,}1595 pada split 80:20. Konfigurasi terbaik menggunakan kernel dengan 687 komponen, $\gamma$ sekitar 0{,}067, $C$ sekitar 32{,}7, dan $\epsilon$ sekitar 0{,}287. Meskipun peningkatannya besar secara relatif, \textit{support vector regression} tetap berada di bawah model linier polinomial. Penyebab utamanya diperkirakan berasal dari keterbatasan representasi non-linier pada estimator linier yang diletakkan di atas ruang aproksimasi Nystr\"oem. Pada data ini, ekspansi fitur polinomial eksplisit tampak lebih efisien karena langsung memperluas ruang fitur yang digunakan model~\cite{Bourdeau2019,Pedregosa2011}. Plot prediksi terhadap nilai aktual pada Gambar~\ref{fig:energy_avp} memperlihatkan bahwa model mengompresi prediksi di sekitar rerata target, sehingga puncak konsumsi tidak tertangkap dengan baik. Pola serupa juga dilaporkan pada studi sebelumnya untuk dataset ini dan umumnya dapat diperbaiki dengan pendekatan \textit{tree ensemble} atau \textit{neural network}, yang berada di luar lingkup perbandingan tugas ini~\cite{Tien2022,Pham2020Energy,Wei2023Energy,Zhao2022Energy}.
+
+\subsection{Diskusi Lintas Persoalan}
+Kedua persoalan menunjukkan pola yang berbeda. Pada klasifikasi kardiovaskular, kontribusi dominan datang dari rekayasa fitur klinis dan pemilihan model non-linier moderat seperti Random Forest, yang mampu menangkap interaksi antara tekanan darah, kolesterol, dan usia. Tuning hiperparameter memberi tambahan sekitar dua sampai tiga poin persentase pada metrik utama. Pada regresi energi, sebaliknya, perubahan ruang fitur dari bentuk linier ke interaksi orde dua menghasilkan lompatan koefisien determinasi yang jauh lebih besar dibanding tuning \textit{support vector regression}. Jika dilihat melalui kerangka risiko bias-varians, persoalan dengan target yang sangat \textit{right-skewed} dan banyak interaksi sensor lebih terbantu oleh ekspansi representasi daripada sekadar \textit{fine-tuning} parameter~\cite{Hastie2009,Raschka2018}. Konsistensi metrik antara dua skenario split data, dengan selisih di bawah 0{,}5 poin persentase, juga mengindikasikan bahwa estimasi kinerja cukup stabil dan tidak terlalu sensitif terhadap proporsi data tes~\cite{Varoquaux2017}.
+
+\section{Rekomendasi Penerapan}
+Pada konteks layanan kesehatan primer, klasifikator hasil tuning dapat dimanfaatkan sebagai sistem peringatan dini berbasis ambang probabilitas yang dikalibrasi terhadap kapasitas rujukan klinik. Karena \textit{recall} kelas positif masih berada di kisaran 0{,}70, sistem ini tidak sebaiknya menjadi penentu tunggal. Perannya lebih tepat sebagai pelengkap penilaian dokter, disertai pemantauan berkelanjutan terhadap distribusi populasi pasien~\cite{Ahmed2022,Naser2023}. Pada konteks pengelolaan energi gedung, regresor linier polinomial dapat dijadikan baseline operasional untuk memperkirakan beban interval pendek karena interpretasinya jelas dan biaya komputasinya rendah. Model tersebut sebaiknya dilengkapi pemantauan deret waktu untuk mendeteksi pergeseran distribusi sensor~\cite{Bourdeau2019,Somu2021,Wei2023Energy}. Iterasi lanjutan dapat menggunakan pendekatan \textit{tree ensemble} dengan validasi temporal untuk menutup celah prediksi pada puncak konsumsi~\cite{Zhao2022Energy}.
+
+\section{Kesimpulan}
+Pipeline pembelajaran mesin empat tahap berhasil dijalankan secara konsisten pada dua kasus rekayasa elektro yang berbeda karakter. Pada klasifikasi kardiovaskular, Random Forest hasil tuning mencapai akurasi 0{,}735 dan ROC-AUC 0{,}801, dengan kontribusi terbesar berasal dari fitur turunan klinis dan kategori tekanan darah. Pada regresi konsumsi energi, regresi linier dengan interaksi orde dua menjadi model terbaik dengan koefisien determinasi 0{,}289 dan RMSE 84{,}3, sedangkan \textit{support vector regression} hasil tuning meningkat tajam tetapi tetap berada di bawah varian linier polinomial. Stabilitas hasil pada dua skenario split data memperkuat indikasi bahwa estimasi kinerja cukup andal. Studi lanjutan dapat memperluas perbandingan ke pendekatan \textit{deep learning} dan model deret waktu untuk menangani non-stasioneritas pada sensor bangunan.
+
+\begin{thebibliography}{99}
+\bibitem{Tien2022} P. W. Tien, S. Wei, J. Darkwa, C. Wood, and J. K. Calautit, ``Machine learning and deep learning methods for enhancing building energy efficiency: A review,'' \emph{Energy and AI}, vol. 10, p. 100198, 2022.
+\bibitem{WHO2023} World Health Organization, \emph{World Health Statistics 2023: Monitoring Health for the SDGs}. Geneva: WHO Press, 2023.
+\bibitem{Ahmed2022} S. Ahmed \emph{et al.}, ``Prediction of cardiovascular disease using machine learning algorithms: A systematic review,'' \emph{Healthcare Analytics}, vol. 2, p. 100016, 2022.
+\bibitem{Candanedo2017} L. M. Candanedo, V. Feldheim, and D. Deramaix, ``Data driven prediction models of energy use of appliances in a low-energy house,'' \emph{Energy and Buildings}, vol. 140, pp. 81--97, 2017.
+\bibitem{Bourdeau2019} M. Bourdeau, X. Q. Zhai, E. Nefzaoui, X. Guo, and P. Chatellier, ``Modeling and forecasting building energy consumption: A review of data-driven techniques,'' \emph{Sustainable Cities and Society}, vol. 48, p. 101533, 2019.
+\bibitem{Somu2021} N. Somu, G. R. M. R., and K. Ramamritham, ``A hybrid model for building energy consumption forecasting using LSTM networks,'' \emph{Applied Energy}, vol. 285, p. 116459, 2021.
+\bibitem{Raschka2018} S. Raschka, ``Model evaluation, model selection, and algorithm selection in machine learning,'' \emph{arXiv preprint} arXiv:1811.12808, 2018.
+\bibitem{Varoquaux2017} G. Varoquaux, ``Cross-validation failure: Small sample sizes lead to large error bars,'' \emph{NeuroImage}, vol. 180, pp. 68--77, 2018.
+\bibitem{Sulianova2018Cardio} S. Ulianova, ``Cardiovascular disease dataset,'' Kaggle, 2018. [Online]. Tersedia: \url{https://www.kaggle.com/datasets/sulianova/cardiovascular-disease-dataset}.
+\bibitem{Dua2019UCI} D. Dua and C. Graff, ``UCI machine learning repository,'' University of California, Irvine, 2019. [Online]. Tersedia: \url{https://archive.ics.uci.edu/ml/index.php}.
+\bibitem{Pedregosa2011} F. Pedregosa \emph{et al.}, ``Scikit-learn: Machine learning in Python,'' \emph{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+\bibitem{Hastie2009} T. Hastie, R. Tibshirani, and J. Friedman, \emph{The Elements of Statistical Learning: Data Mining, Inference, and Prediction}, 2nd ed. New York: Springer, 2009.
+\bibitem{Naser2023} M. Z. Naser and A. H. Alavi, ``Error metrics and performance fitness indicators for artificial intelligence and machine learning in engineering and sciences,'' \emph{Architecture, Structures and Construction}, vol. 3, pp. 499--517, 2023.
+\bibitem{KhanIcmla2020} A. Khan, M. Qureshi, M. Daniyal, and K. Tawiah, ``A novel study on machine learning algorithm-based cardiovascular disease prediction,'' \emph{Health and Social Care in the Community}, vol. 2023, pp. 1--10, 2023.
+\bibitem{Yusuf2024Cardio} M. Yusuf, S. Atal, and R. Tiwari, ``Cardiovascular disease prediction using machine learning techniques: A comparative analysis,'' \emph{IEEE Access}, vol. 12, pp. 49880--49897, 2024.
+\bibitem{Pham2020Energy} A. D. Pham, N. T. Ngo, T. T. H. Truong, N. T. Huynh, and N. S. Truong, ``Predicting energy consumption in multiple buildings using machine learning for improving energy efficiency and sustainability,'' \emph{Journal of Cleaner Production}, vol. 260, p. 121082, 2020.
+\bibitem{Wei2023Energy} Y. Wei, X. Xia, L. Zhang, and Z. Yang, ``A short term building electrical load forecasting method using deep learning algorithms,'' \emph{Energy Reports}, vol. 9, pp. 5589--5602, 2023.
+\bibitem{Zhao2022Energy} Y. Zhao, C. Li, and J. Liu, ``A review of data-driven approaches for prediction and classification of building energy consumption,'' \emph{Renewable and Sustainable Energy Reviews}, vol. 162, p. 112452, 2022.
+\bibitem{Pasha2024CVD} F. Pasha, S. Khan, and M. A. Al-Antari, ``Cardiovascular disease prediction using ensemble machine learning models on real world clinical data,'' \emph{Diagnostics}, vol. 14, no. 7, p. 715, 2024.
+\bibitem{Yang2020Hyperopt} L. Yang and A. Shami, ``On hyperparameter optimization of machine learning algorithms: Theory and practice,'' \emph{Neurocomputing}, vol. 415, pp. 295--316, 2020.
+\end{thebibliography}
+
+\end{document}

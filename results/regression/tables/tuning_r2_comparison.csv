@@ -1,0 +1,5 @@
+split,stage,model,r2,rmse
+80:20,baseline,Linear Regression (poly2),0.289191388980384,84.33935333471143
+80:20,tuned,Linear Regression (poly2),0.289191388980384,84.33935333471143
+70:30,baseline,Linear Regression (poly2),0.28144446390466693,86.04072196629575
+70:30,tuned,Linear Regression (poly2),0.28144446390466693,86.04072196629575

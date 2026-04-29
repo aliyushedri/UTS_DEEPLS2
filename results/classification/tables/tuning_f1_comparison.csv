@@ -1,0 +1,5 @@
+split,stage,model,f1
+80:20,baseline,Random Forest,0.7023622047244095
+80:20,tuned,Random Forest,0.7203200738631992
+70:30,baseline,Random Forest,0.7037441652597081
+70:30,tuned,Random Forest,0.7243045313533032
