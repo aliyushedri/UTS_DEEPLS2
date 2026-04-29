@@ -1,22 +1,3 @@
-"""
-Download hasil (results/) dari Google Drive ke folder lokal.
-
-Struktur Drive yang diunduh:
-  MyDrive/UTS_DEEPL_S2/results/
-    classification/figures/, tables/, models/
-    regression/figures/, tables/, models/
-
-Kebutuhan:
-  pip install google-auth google-auth-oauthlib google-api-python-client
-
-Langkah pertama kali:
-  1. Buka https://console.cloud.google.com/
-  2. Buat project baru → Enable "Google Drive API"
-  3. Buat OAuth 2.0 Client ID (tipe: Desktop App)
-  4. Download JSON credentials → simpan sebagai  credentials.json
-     di folder yang sama dengan script ini
-"""
-
 import io
 import os
 from pathlib import Path
